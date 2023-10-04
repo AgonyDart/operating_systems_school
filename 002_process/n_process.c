@@ -5,16 +5,21 @@
 
 void wait();
 
-int main() {
+int main()
+{
     int n = 5; // Cambia n al número deseado de subprocesos
-    
-    for (int i = 0; i < n; i++) {
+
+    for (int i = 0; i < n; i++)
+    {
         pid_t child = fork();
-        
-        if (child < 0) {
+
+        if (child < 0)
+        {
             fprintf(stderr, "Error al crear el subproceso %d\n", i);
             return 1;
-        } else if (child == 0) {
+        }
+        else if (child == 0)
+        {
             // Código ejecutado por el subproceso hijo
             printf("Soy el subproceso %d, mi PID es %d, y mi padre es %d\n", i, getpid(), getppid());
             // Realiza tareas específicas para el subproceso hijo
@@ -24,13 +29,14 @@ int main() {
 
     // Código ejecutado por el proceso padre
     printf("Soy el proceso padre, mi PID es %d\n", getpid());
-    
+
     // El proceso padre puede realizar tareas específicas aquí
-    
+
     // Esperar a que todos los subprocesos hijos terminen
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
+    {
         wait(NULL);
     }
-    
+
     return 0;
 }
