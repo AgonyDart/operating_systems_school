@@ -4,9 +4,8 @@
 #include <sys/types.h>
 #include <stdlib.h>
 
-int *ptr;
 int array_size;
-int x;
+int subprocesses;
 
 // A function to compare two integers for qsort
 int compare(const void *a, const void *b)
@@ -52,8 +51,8 @@ int main()
   printf("Enter the length of the array: ");
   scanf("%d", &array_size);
 
-  ptr = (int *)malloc(array_size * sizeof(int));
-  if (ptr == NULL)
+  int *p_original_array = (int *)malloc(array_size * sizeof(int));
+  if (p_original_array == NULL)
   {
     printf("Memory allocation failed\n");
     exit(1);
@@ -66,56 +65,69 @@ int main()
     srand(time(0));
     for (int i = 0; i < array_size; i++)
     {
-      int random_int = rand() % 1024 + 1;
-      ptr[i] = random_int;
+      p_original_array[i] = rand() % 1024 + 1;
     }
     printf("Array elements are: [");
     for (int i = 0; i < array_size; i++)
     {
-      printf("%d ", ptr[i]);
+      printf("%d ", p_original_array[i]);
     }
 
     printf("]\nEnter how many subprocesses you want to create: ");
-    scanf("%d", &x);
+    scanf("%d", &subprocesses);
 
-    int chunk_size = array_size / x;
+    int chunk_size = array_size / subprocesses;
+    int remainder = array_size % subprocesses;
     // printf("Chunk size: %d\n", chunk_size);
-    for (int i = 0; i < x; i++)
+    for (int i = 0; i < subprocesses; i++)
     {
-      pid_t pid = fork();
-      if (pid < 0)
+      pid_t child = fork();
+      if (child < 0)
       {
         printf("Error creating subprocess\n");
         exit(1);
       }
-      else if (pid == 0)
+      else if (child == 0)
       {
         // Child process
-        int *ptr_temp = (int *)malloc(chunk_size * sizeof(int));
-        int k = 0;
-
-        printf("\nSubprocess %d", i);
-        printf(", My array elements are: [");
-        for (int j = i * chunk_size; j < (i + 1) * chunk_size; j++)
+        if (i == subprocesses - 1 && remainder > 0)
         {
-          ptr_temp[k] = ptr[j];
-          printf("%d ", ptr_temp[k]);
-          k++;
+          chunk_size += remainder;
         }
-        int aux = 0;
-        int *p = &aux;
-        int ptr_temp_size = sizeof(ptr_temp_size) / sizeof(ptr_temp_size[p]);
-        order_numbers(ptr_temp, ptr_temp_size);
-        printf("]\nMy ordered array elements are: [");
-        for (int j = 0; j < chunk_size; j++)
+        int *p_chunk_array = (int *)malloc(chunk_size * sizeof(int));
+        if (p_chunk_array == NULL)
         {
-          printf("%d ", ptr_temp[j]);
+          printf("Memory allocation failed\n");
+          exit(1);
         }
+        else
+        {
+          int k = 0;
 
-        printf("]\n");
-        exit(0);
+          printf("\nSubprocess %d", i);
+          printf(", My array elements are: [");
+
+          for (int j = i * chunk_size; j < (i + 1) * chunk_size; j++)
+          {
+            p_chunk_array[k] = p_original_array[j];
+            printf("%d ", p_chunk_array[k]);
+            k++;
+          }
+
+          // int p_chunk_array_size = sizeof(p_chunk_array) / sizeof(chunk_size);
+          order_numbers(p_chunk_array, chunk_size);
+          printf("]\nMy ordered array elements are: [");
+
+          for (int j = 0; j < chunk_size; j++)
+          {
+            printf("%d ", p_chunk_array[j]);
+          }
+
+          printf("]\n");
+          exit(0);
+        }
       }
     }
+    return 0;
   }
-  return 0;
 }
