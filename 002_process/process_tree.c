@@ -9,14 +9,14 @@ void create_children(int n) {
   for (int i = 0; i < n; i++) {
     pid = fork();
     if (pid == 0) {
-      // Child process
+      // subproceso
       printf("Soy el subproceso %d y mi PID es %d , y mi padre tiene el PID %d\n", i + 1, getpid(), getppid());
       exit(0);
     } else if (pid > 0) {
-      // Parent process
-      wait(NULL); // Wait for child to finish
+      // padre
+      wait(NULL);
     } else {
-      // Fork failed
+      // Fork fail
       perror("fork");
       exit(1);
     }
@@ -25,20 +25,17 @@ void create_children(int n) {
 
 int main() {
   pid_t pid;
-  int n = 3; // Number of children for the root process
+  int n = 3; // Numero de hijos del proceso root
   printf("proceso ROOT con PID  %d\n", getpid());
   for (int i = 0; i < n; i++) {
     pid = fork();
     if (pid == 0) {
-      // Child process
       printf("Soy el subproceso %d y mi PID es %d , y mi padre tiene el PID %d, [ROOT]\n", i + 1, getpid(), getppid());
-      create_children(i + 1); // Create i + 1 children based on the index
+      create_children(i + 1); // Crea i + 1 subprocesos basados en el index
       exit(0);
     } else if (pid > 0) {
-      // Parent process
-      wait(NULL); // Wait for child to finish
+      wait(NULL); 
     } else {
-      // Fork failed
       perror("fork");
       exit(1);
     }
