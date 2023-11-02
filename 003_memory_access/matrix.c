@@ -1,94 +1,144 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <omp.h>
+#include <pthread.h>
+#include <time.h>
 
-void printMatrix(int **matrix, int size)
+#define MAX_THREADS 5000
+
+int n, m;
+int num_threads;
+int **matriz1;
+int **matriz2;
+int **resultado;
+clock_t start, end;
+double execution_time;
+
+struct ThreadData
 {
-    int rows = size;
-    int cols = size;
-    for (int i = 0; i < rows; i++)
+    int thread_id;
+    int start_row;
+    int end_row;
+};
+
+void *suma_bloques(void *arg)
+{
+    struct ThreadData *data = (struct ThreadData *)arg;
+    int start_row = data->start_row;
+    int end_row = data->end_row;
+
+    for (int i = start_row; i < end_row; i++)
     {
-        for (int j = 0; j < cols; j++)
+        for (int j = 0; j < m; j++)
         {
-            printf("[%4d]", matrix[i][j]);
+            resultado[i][j] = matriz1[i][j] + matriz2[i][j];
         }
-        printf("\n");
+    }
+
+    pthread_exit(NULL);
+}
+
+void print_matrix(int **matrix, int n, int m)
+{
+    printf("\n");
+    for (int i = 0; i < n; i++)
+    {
+        printf("|");
+        for (int j = 0; j < m; j++)
+        {
+            printf("[%4d] ", matrix[i][j]);
+        }
+        printf("|\n");
     }
 }
 
 int main()
 {
-    int MATRIX_SIZE = 0;
-    printf("Enter the length of the matrix: ");
-    scanf("%d", &MATRIX_SIZE);
+    srand(time(NULL));
 
-    int **matrix1 = (int **)malloc(MATRIX_SIZE * sizeof(int *));
-    int **matrix2 = (int **)malloc(MATRIX_SIZE * sizeof(int *));
-    int **result = (int **)malloc(MATRIX_SIZE * sizeof(int *));
+    printf("Ingrese el valor de n: ");
+    scanf("%d", &n);
+    printf("Ingrese el valor de m: ");
+    scanf("%d", &m);
 
-    double start, end;
-    start = omp_get_wtime();
+    matriz1 = (int **)malloc(n * sizeof(int *));
+    matriz2 = (int **)malloc(n * sizeof(int *));
+    resultado = (int **)malloc(n * sizeof(int *));
 
-    for (int i = 0; i < MATRIX_SIZE; i++)
+    start = clock();
+    printf("Creando matrices...\n");
+    for (int i = 0; i < n; i++)
     {
-        matrix1[i] = (int *)malloc(MATRIX_SIZE * sizeof(int));
-        matrix2[i] = (int *)malloc(MATRIX_SIZE * sizeof(int));
-        result[i] = (int *)malloc(MATRIX_SIZE * sizeof(int));
-    }
-
-    int NUM_THREADS = 0;
-    printf("Enter the number of threads: ");
-    scanf("%d", &NUM_THREADS);
-    omp_set_num_threads(NUM_THREADS);
-
-    srand(omp_get_thread_num());
-#pragma omp parallel for
-    for (int i = 0; i < MATRIX_SIZE; i++)
-    {
-        for (int j = 0; j < MATRIX_SIZE; j++)
+        matriz1[i] = (int *)malloc(m * sizeof(int));
+        matriz2[i] = (int *)malloc(m * sizeof(int));
+        resultado[i] = (int *)malloc(m * sizeof(int));
+        for (int j = 0; j < m; j++)
         {
-            matrix1[i][j] = (rand() % 201) - 100;
-            matrix2[i][j] = (rand() % 201) - 100;
+            matriz1[i][j] = (rand() % 200) - 100;
+            matriz2[i][j] = (rand() % 200) - 100;
         }
     }
 
-    int BLOCK_SIZE = MATRIX_SIZE / NUM_THREADS;
-
-#pragma omp parallel for
-    for (int i = 0; i < MATRIX_SIZE; i++)
+    printf("Ingrese el número de hilos a crear: ");
+    scanf("%d", &num_threads);
+    if (num_threads > MAX_THREADS)
     {
-        for (int j = 0; j < MATRIX_SIZE; j++)
+        printf("El número de hilos no puede ser mayor que %d\n", MAX_THREADS);
+        return 1;
+    }
+
+    pthread_t threads[MAX_THREADS];
+    struct ThreadData thread_data[MAX_THREADS];
+    int rows_per_thread = n / num_threads;
+    int remaining_rows = n % num_threads;
+    printf("Remain: %d\n", remaining_rows);
+    printf("rows: %d\n", rows_per_thread);
+    int current_row = 0;
+
+    for (int i = 0; i < num_threads; i++)
+    {
+        int rows = rows_per_thread + (i < remaining_rows ? 1 : 0);
+        thread_data[i].thread_id = i;
+        thread_data[i].start_row = current_row;
+        thread_data[i].end_row = current_row + rows;
+        current_row += rows;
+
+        printf("Soy el hilo %d y voy a sumar de la fila %d a la fila %d\n", i, thread_data[i].start_row, thread_data[i].end_row);
+
+        if (pthread_create(&threads[i], NULL, suma_bloques, &thread_data[i]))
         {
-            int thread_num = omp_get_thread_num();
-            printf("\nThread number: %d || working on row [%4d], col [%4d]", thread_num, i, j);
-            result[i][j] = matrix1[i][j] + matrix2[i][j];
+            fprintf(stderr, "Error al crear el hilo %d\n", i);
+            return 1;
         }
     }
 
-    end = omp_get_wtime();
-
-    // printf("\nMatrix 1:\n");
-    // printMatrix(matrix1, MATRIX_SIZE);
-
-    // printf("\nMatrix 2:\n");
-    // printMatrix(matrix2, MATRIX_SIZE);
-
-    // printf("\nResult Matrix:\n");
-    // printMatrix(result, MATRIX_SIZE);
-
-    printf("\nTime taken: %f seconds\n", end - start);
-
-#pragma omp parallel for
-    for (int i = 0; i < MATRIX_SIZE; i++)
+    for (int i = 0; i < num_threads; i++)
     {
-        free(matrix1[i]);
-        free(matrix2[i]);
-        free(result[i]);
+        pthread_join(threads[i], NULL);
     }
 
-    free(matrix1);
-    free(matrix2);
-    free(result);
+    end = clock();
+    execution_time = (double)(end - start) / CLOCKS_PER_SEC;
+
+    // printf("Matriz 1:\n");
+    // print_matrix(matriz1, n, m);
+
+    // printf("\nMatriz 2:\n");
+    // print_matrix(matriz2, n, m);
+
+    // printf("\nResultado:\n");
+    // print_matrix(resultado, n, m);
+
+    printf("\nTiempo de ejecucion: %4f\n", execution_time);
+
+    for (int i = 0; i < n; i++)
+    {
+        free(matriz1[i]);
+        free(matriz2[i]);
+        free(resultado[i]);
+    }
+    free(matriz1);
+    free(matriz2);
+    free(resultado);
 
     return 0;
 }
