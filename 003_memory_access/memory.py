@@ -1,49 +1,45 @@
 import matplotlib.pyplot as plt
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk
-from matplotlib.backends.backend_gtk3agg import FigureCanvasGTK3Agg as FigureCanvas
 
-# List of data
-data = [[100, 1900], [400, 1500], [300, 1800], [200, 1700]]
+class Node:
+    def __init__(self, base, free):
+        self.base = base
+        self.free = free
+        self.next = None
 
-# Current index
-index = 0
 
-# Function to draw a bar chart
-def draw_chart(data):
-    fig, ax = plt.subplots(figsize=(2.5,10))
-    ax.set_xlim([0, 0.1])
-    ax.set_xticks([])
-    ax.set_ylim([0, 2000])
-    ax.set_title('Mejor ajuste')
-    ax.bar(0, data[0], 0.8 , data[1], color='w', edgecolor='black', label='os')
-    ax.legend()
-    return fig
+class LinkedList:
+    def __init__(self):
+        self.head = Node(0, 0)
 
-# Function to handle key press events
-def on_key_press_event(widget, event):
-    global index
-    keyname = Gdk.keyval_name(event.keyval)
-    if keyname == 'Left':
-        index = (index - 1) % len(data)
-    elif keyname == 'Right':
-        index = (index + 1) % len(data)
-    fig = draw_chart(data[index])
-    canvas = FigureCanvas(fig)
-    window.add(canvas)
-    window.show_all()
+    def add(self, base, free_space):
+        new_node = Node(base, free_space)
+        self.head.next = new_node
 
-# Initialize the GTK window
-window = Gtk.Window()
-window.connect("destroy", Gtk.main_quit)
-window.connect("key-press-event", on_key_press_event)
+    def show(self):
+        actual = self.head.next
+        while actual is not None:
+            print(f"Start: {actual.base}, Space: {actual.free}")
+            actual = actual.next
 
-# Draw the initial bar chart
-fig = draw_chart(data[index])
-canvas = FigureCanvas(fig)
-window.add(canvas)
-window.show_all()
+def show_bar():
+    plt.bar(method.keys(), method.values(), width=0.5, align='center')
 
-# Start the GTK main loop
-Gtk.main()
+    plt.ylabel('Memory')
+    plt.title(method)
+    plt.legend()
+    plt.show()
+
+
+def main():
+    system_len = int(input("Ingrese el tamaño del sistema operativo: "))
+    num_procesos = int(input("Ingrese el número de procesos: "))
+
+    procesos = []
+    for i in range(num_procesos):
+        tamano_proceso = int(input(f"Ingrese el tamaño del proceso {i + 1}: "))
+        tiempo_ejecucion = int(input(f"Ingrese el tiempo de ejecución del proceso {i + 1}: "))
+        procesos.append((tamano_proceso, tiempo_ejecucion))
+
+
+if __name__ == "__main__":
+    main()
