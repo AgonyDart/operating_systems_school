@@ -15,6 +15,7 @@ class Process:
         self.id = Process.last_id
         self.size = size
         self.time = time
+        self.dir = None
 
 class LinkedList:
     # Initialize the head of the linked list, this list will manage the free memory
@@ -22,6 +23,7 @@ class LinkedList:
         self.head = Node(0, ram)
 
     def print_list(self):
+        print("Nodos con espacio libre:")
         current = self.head
         while current:
             print(f"Base: {current.base} | Free: {current.free}")
@@ -38,6 +40,12 @@ class LinkedList:
         self.head = new_node
         return 1
         
+    # Make a new node, set its pointer to the head, and set it as the new head
+    def push_free(self, base, size):
+        new_node = Node(base, size)
+        new_node.next = self.head
+        self.head = new_node
+
     def delete_node(self, target_base):
         current = self.head
 
@@ -85,45 +93,81 @@ class LinkedList:
                     swapped = True
                 node = node.next
 
+    def sort_by_base(self):
+        if self.head is None:
+            return
+
+        swapped = True 
+        while swapped:
+            swapped = False
+            current = self.head
+            while current.next is not None:
+                if current.base > current.next.base: 
+                    current.base, current.next.base = current.next.base, current.base #swap
+                    current.free, current.next.free = current.next.free, current.free #swap
+                    swapped = True
+                current = current.next
+
+    # merge free spaces
+    def merge(self):
+        self.sort_by_base()
+        current = self.head 
+        while current is not None: # for each node
+            runner = current
+            while runner is not None and runner.next is not None: # each node
+                if current.base + current.free == runner.next.base: # if next to
+                    current.free += runner.next.free # merge
+                    runner.next = runner.next.next # delete
+                else:
+                    runner = runner.next
+            current = current.next
+    
     # first fit allocation
     def first_fit_allocation(self, process_list, processes_exec, processes_waiting, ram, system_len, memory):
         event_counter = 0 # number of events
         for process in process_list:
-            if self.head.free >= process.size: # if there is enough space
-                self.push(process.size)
-                processes_exec.append(process) # add to execution list
-                event_counter += 1
-                make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste') # plot
-            else:
+            current = self.head
+            while current: # Iterate over all nodes
+                if current.free >= process.size: # if there is enough space
+                    current.free -= process.size
+                    process.dir = current.base
+                    current.base += process.size
+                    processes_exec.append(process) # add to execution list
+                    event_counter += 1
+                    memory.print_list()
+                    make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste') # plot
+                    break
+                current = current.next
+            else: # If no break occurred in the loop
                 processes_waiting.append(process) # add to waiting list
 
         while processes_exec:
-            for process in processes_exec: # for each process in execution list
+            for process in processes_exec.copy(): # for each process in copy execution list
                 process.time -= 1 # decrease time
                 print(f"Proceso {process.id} | Tiempo restante: {process.time}") 
                 if process.time == 0: # if time is over
                     processes_exec.remove(process) # remove from execution list
-                    print(f"Proceso {process.id} terminado.")
-                    self.delete_node(process.size)
-                    make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+                    print(f"----------\nProceso {process.id} terminado.\n----------")
+                    # Add a new node to represent the free space
+                    self.push_free(process.dir, process.size)
+                    self.merge()
                     event_counter += 1
-        print(f"Eventos: {event_counter}")
-
-
-    # utils
-    # def merge_free_spaces(self):
-    #     if self.head is None:
-    #         return
-
-    #     node = self.head
-    #     while node.next:
-    #         if node.free and node.next.free:
-    #             node.free -= node.next.free
-    #             node.next = node.next.next
-    #         else:
-    #             node = node.next     
+                    memory.print_list()
+                    make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+                    
+                    # Check if any waiting processes can be added
+                    for waiting_process in processes_waiting[:]: # Iterate over a slice copy of the list
+                        if self.head.free >= waiting_process.size: # if enough space
+                            self.push(waiting_process.size)
+                            processes_exec.append(waiting_process) # add to execution list
+                            processes_waiting.remove(waiting_process) # remove from waiting list
+                            event_counter += 1
+                            memory.print_list()
+                            make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+        print(f"-------\nEventos: {event_counter}")
+        return event_counter
     
-def make_bar(ram, os_len, processes_exec, mem, method='Primer ajuste'):
+def make_bar(ram, os_len, processes_exec, mem, method):
     fig, ax = plt.subplots(1, 1, figsize=(5, 7.5), sharey=True)
 
     ax.set_ylim(0, ram)
@@ -132,38 +176,52 @@ def make_bar(ram, os_len, processes_exec, mem, method='Primer ajuste'):
     ax.set_title(method)
     ax.bar(0, os_len, width=0.5, bottom=0, align='center', label='OS')
     bottom = os_len
-    for i, process in enumerate(processes_exec):
-        ax.bar(0, process.size, width=0.5, bottom=bottom, align='center', label=f'Proceso {process.id}')
-        bottom += process.size
-    ax.bar(0, mem.head.free, width=0.5, bottom=(mem.head.base), align='center', label=f'Espacio libre', color='grey')
+    print(f"-------\nOS | Base: 0 | Tamaño: {os_len}\n-------\nProcesos:")
+    for i, process in enumerate(processes_exec): # for each process
+        if process.dir is None:
+            process.dir = bottom # set base
+
+        ax.bar(0, process.size, width=0.5, bottom=process.dir, align='center', label=f'Proceso {process.id}')
+        bottom += process.size # update bottom
+        print(f"Proceso {process.id} | Base: {process.dir} | Tamaño: {process.size}")
+    current = mem.head # free memory
+    while current is not None and current.free > 0: # for each node
+        ax.bar(0, current.free, width=0.5, bottom=current.base, align='center', label=f'Espacio libre', color='grey') 
+        current = current.next
     ax.legend()
 
     plt.show()
 
-
 def main():
-    ram = 1000 #int(input("Ingrese el tamaño de la memoria RAM: "))
-    system_len = 100 #int(input("Ingrese el tamaño del sistema operativo: "))
-    # num_procesos = int(input("Ingrese el número de procesos: "))
-    # for i in range(num_procesos):
-    #     tamano_proceso = int(input(f"Ingrese el tamaño del proceso {i + 1}: "))
-    #     tiempo_ejecucion = int(input(f"Ingrese el tiempo de ejecución del proceso {i + 1}: "))
-    #     procesos.append(Process(tamano_proceso, tiempo_ejecucion)
-
     procesos = []
     procesos_exec = []
     procesos_waiting = []
 
-    procesos.append(Process(150, 5))
-    procesos.append(Process(800, 12))
-    procesos.append(Process(60, 20))
+    # DATA
+    ram = 2000
+    system_len = 400
+
+    procesos.append(Process(200, 5))
+    procesos.append(Process(800, 10))
+    procesos.append(Process(400, 5))
+    procesos.append(Process(100, 12))
+    procesos.append(Process(150, 15))
+    procesos.append(Process(60, 3))
+    procesos.append(Process(300, 10))
+    procesos.append(Process(100, 5))
+
+    # ram = int(input("Ingrese el tamaño de la memoria RAM: "))
+    # system_len = int(input("Ingrese el tamaño del sistema operativo: "))
+    # num_procesos = int(input("Ingrese el número de procesos: "))
+    # for i in range(num_procesos):
+    #     tamano_proceso = int(input(f"Ingrese el tamaño del proceso {i + 1}: "))
+    #     tiempo_ejecucion = int(input(f"Ingrese el tiempo de ejecución del proceso {i + 1}: "))
+    #     procesos.append(Process(tamano_proceso, tiempo_ejecucion))
 
     memory = LinkedList(ram) #RAM
     memory.push(system_len) #OS
 
     memory.first_fit_allocation(procesos, procesos_exec, procesos_waiting, ram, system_len, memory)
-
-    # make_bar(ram, system_len, procesos_exec, memory)
 
 if __name__ == "__main__":
     main()
