@@ -31,14 +31,10 @@ class LinkedList:
         print()
 
     # Make a new node, set its pointer to the head, and set the head to the new node
-    def push(self, base):
-        if self.head.free - base < 0:
-            print("No hay suficiente espacio libre para agregar este proceso.")
-            return 0
-        new_node = Node(base + self.head.base, self.head.free - base)
-        new_node.next = self.head.next
-        self.head = new_node
-        return 1
+    def push(self, size):
+        if self.head.free >= size: # Only add the node if there is enough free space
+            self.head.base += size
+            self.head.free -= size
         
     # Make a new node, set its pointer to the head, and set it as the new head
     def push_free(self, base, size):
@@ -142,28 +138,36 @@ class LinkedList:
                 processes_waiting.append(process) # add to waiting list
 
         while processes_exec:
-            for process in processes_exec.copy(): # for each process in copy execution list
+            finished_processes = [process for process in processes_exec if process.time == 0] # List of finished processes
+            for process in finished_processes: # for each finished process
+                processes_exec.remove(process) # remove from execution list
+                print(f"----------\nProceso {process.id} terminado.\n----------")
+                # Add a new node to represent the free space
+                self.push_free(process.dir, process.size)
+                self.merge()
+                event_counter += 1
+                memory.print_list()
+                make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+
+            for process in processes_exec: # for each process in execution list
                 process.time -= 1 # decrease time
                 print(f"Proceso {process.id} | Tiempo restante: {process.time}") 
-                if process.time == 0: # if time is over
-                    processes_exec.remove(process) # remove from execution list
-                    print(f"----------\nProceso {process.id} terminado.\n----------")
-                    # Add a new node to represent the free space
-                    self.push_free(process.dir, process.size)
-                    self.merge()
-                    event_counter += 1
-                    memory.print_list()
-                    make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
-                    
-                    # Check if any waiting processes can be added
-                    for waiting_process in processes_waiting[:]: # Iterate over a slice copy of the list
-                        if self.head.free >= waiting_process.size: # if enough space
-                            self.push(waiting_process.size)
-                            processes_exec.append(waiting_process) # add to execution list
-                            processes_waiting.remove(waiting_process) # remove from waiting list
-                            event_counter += 1
-                            memory.print_list()
-                            make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+
+            # Check if any waiting processes can be added
+            for waiting_process in processes_waiting[:]: # Iterate over a slice copy of the list
+                current = self.head
+                while current: # Iterate over all nodes
+                    if current.free >= waiting_process.size: # if there is enough space
+                        current.free -= waiting_process.size
+                        waiting_process.dir = current.base
+                        current.base += waiting_process.size
+                        processes_exec.append(waiting_process) # add to execution list
+                        processes_waiting.remove(waiting_process) # remove from waiting list
+                        event_counter += 1
+                        memory.print_list()
+                        make_bar(ram, system_len, processes_exec, memory, method='Primer ajuste')
+                        break
+                    current = current.next
         print(f"-------\nEventos: {event_counter}")
         return event_counter
     
